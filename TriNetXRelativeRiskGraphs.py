@@ -34,10 +34,8 @@ data = st.session_state.get("data", initialize_data())
 
 # Always ensure "Bar Color" column exists and is sized correctly
 if "Bar Color" not in data.columns or len(data["Bar Color"]) != len(data):
-    # Pad or shrink colors as needed
     base_colors = get_default_colors(len(data))
     if "Bar Color" in data.columns:
-        # Use existing colors for matching rows, fill rest
         old_colors = list(data["Bar Color"]) + base_colors
         data["Bar Color"] = old_colors[:len(data)]
     else:
@@ -49,7 +47,6 @@ edited_data = data.copy()
 for i in range(len(edited_data)):
     color_key = f"bar_color_{i}"
     current_color = edited_data.at[i, "Bar Color"]
-    # Defensive: if NaN, assign default
     if not isinstance(current_color, str) or not current_color.startswith("#"):
         current_color = get_default_colors(len(edited_data))[i]
     edited_data.at[i, "Bar Color"] = st.sidebar.color_picker(
@@ -74,7 +71,13 @@ table_no_color = st.data_editor(
 # Restore Bar Color after data editor changes
 edited_data["Cohort Name"] = table_no_color["Cohort Name"]
 edited_data["Relative Risk"] = table_no_color["Relative Risk"]
-edited_data["Bar Color"] = edited_data["Bar Color"].fillna(get_default_colors(len(edited_data)))
+
+# Fill in any missing/invalid bar colors with defaults, row by row
+default_colors = get_default_colors(len(edited_data))
+for i in range(len(edited_data)):
+    color = edited_data.at[i, "Bar Color"]
+    if not isinstance(color, str) or not color.startswith("#"):
+        edited_data.at[i, "Bar Color"] = default_colors[i]
 
 # Save in session state
 st.session_state.data = edited_data
