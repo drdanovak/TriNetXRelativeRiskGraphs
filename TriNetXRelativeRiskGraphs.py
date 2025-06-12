@@ -34,28 +34,24 @@ edited_data = st.data_editor(
 )
 st.session_state.data = edited_data
 
-# --- Chart Options ---
-st.subheader("Step 2: Customize Chart Appearance")
-with st.expander("🛠️ Appearance Options", expanded=True):
+# --- Chart Options in Sidebar ---
+st.sidebar.header("🛠️ Customize Appearance")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        orientation = st.radio("Bar Orientation", ["Horizontal", "Vertical"], index=0)
-        font_size = st.slider("Font Size", 8, 28, 14)
-        font_family = st.selectbox("Font Family", ["DejaVu Sans", "Arial", "Helvetica", "Times New Roman", "Courier New"])
-        bar_width = st.slider("Bar/Value Spacing", 0.2, 0.9, 0.6)
-        gridlines = st.checkbox("Show gridlines", value=True)
-        grayscale = st.checkbox("Grayscale", value=False)
-    with col2:
-        color = st.color_picker("Bar Color", "#3498db")
-        edge_color = st.color_picker("Bar Edge Color", "#333333")
-        x_label = st.text_input("X-axis Label", "Cohort")
-        y_label = st.text_input("Y-axis Label", "Relative Risk")
-        show_values = st.checkbox("Show values on bars", value=True)
-        axis_label_weight = st.selectbox("Axis Label Weight", ["normal", "bold", "heavy"], index=1)
+orientation = st.sidebar.radio("Bar Orientation", ["Horizontal", "Vertical"], index=0)
+font_size = st.sidebar.slider("Font Size", 8, 28, 14)
+font_family = st.sidebar.selectbox("Font Family", ["DejaVu Sans", "Arial", "Helvetica", "Times New Roman", "Courier New"])
+bar_width = st.sidebar.slider("Bar/Value Spacing", 0.2, 0.9, 0.6)
+gridlines = st.sidebar.checkbox("Show gridlines", value=True)
+grayscale = st.sidebar.checkbox("Grayscale", value=False)
+color = st.sidebar.color_picker("Bar Color", "#3498db")
+edge_color = st.sidebar.color_picker("Bar Edge Color", "#333333")
+x_label = st.sidebar.text_input("X-axis Label", "Cohort")
+y_label = st.sidebar.text_input("Y-axis Label", "Relative Risk")
+show_values = st.sidebar.checkbox("Show values on bars", value=True)
+axis_label_weight = st.sidebar.selectbox("Axis Label Weight", ["normal", "bold", "heavy"], index=1)
 
 # --- Draw Chart ---
-st.subheader("Step 3: View & Download Your Bargraph")
+st.subheader("Step 2: View & Download Your Bargraph")
 
 def plot_bargraph(df, orientation, font_size, font_family, bar_width, color, edge_color, gridlines, grayscale,
                   x_label, y_label, show_values, axis_label_weight):
