@@ -23,7 +23,7 @@ def initialize_data():
         'Row Type': ['Data', 'Data'],
         'Label': ['Cohort A', 'Cohort B'],
         'Relative Risk': [1.25, 0.97],
-        'Bar Color': get_default_colors(2),
+        'Bar Color': get_default_colors(2)
     })
     return df
 
@@ -31,18 +31,46 @@ if "data" not in st.session_state:
     st.session_state.data = initialize_data()
 data = st.session_state.data.copy()
 
-# Sidebar to set Row Type and Bar Color for each row
+# --- Ensure all required columns exist and are the right length ---
+required_cols = ["Row Type", "Label", "Relative Risk", "Bar Color"]
+for col in required_cols:
+    if col not in data.columns:
+        if col == "Row Type":
+            data[col] = ["Data"] * len(data)
+        elif col == "Label":
+            data[col] = [f"Cohort {i+1}" for i in range(len(data))]
+        elif col == "Relative Risk":
+            data[col] = [1.0] * len(data)
+        elif col == "Bar Color":
+            data[col] = get_default_colors(len(data))
+    # If column exists but length is wrong, pad/truncate
+    elif len(data[col]) != len(data):
+        if col == "Row Type":
+            data[col] = list(data[col]) + ["Data"] * (len(data) - len(data[col]))
+            data[col] = data[col][:len(data)]
+        elif col == "Label":
+            data[col] = list(data[col]) + [f"Cohort {i+1}" for i in range(len(data) - len(data[col]))]
+            data[col] = data[col][:len(data)]
+        elif col == "Relative Risk":
+            data[col] = list(data[col]) + [1.0] * (len(data) - len(data[col]))
+            data[col] = data[col][:len(data)]
+        elif col == "Bar Color":
+            data[col] = list(data[col]) + get_default_colors(len(data) - len(data[col]))
+            data[col] = data[col][:len(data)]
+
+# --- Sidebar to set Row Type and Bar Color for each row ---
 st.sidebar.header("Customize Table Rows")
 for i in range(len(data)):
+    row_type = data.at[i, "Row Type"] if "Row Type" in data.columns else "Data"
+    index_for_box = 0 if row_type == "Data" else 1
     row_type = st.sidebar.selectbox(
         f"Row {i+1} Type",
         options=["Data", "Header"],
-        index=0 if data.at[i, "Row Type"] == "Data" else 1,
+        index=index_for_box,
         key=f"rowtype_{i}"
     )
     data.at[i, "Row Type"] = row_type
     if row_type == "Data":
-        # Only show color picker for data rows
         color = data.at[i, "Bar Color"]
         if not isinstance(color, str) or not color.startswith("#"):
             color = get_default_colors(len(data))[i]
