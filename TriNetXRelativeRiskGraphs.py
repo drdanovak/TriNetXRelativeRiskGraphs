@@ -8,10 +8,11 @@ st.set_page_config(page_title="2-Cohort Outcome Bar Chart", layout="centered")
 
 st.title("Two-Cohort Outcome Bar Chart")
 st.markdown("""
-Enter each outcome, and the risk percentage for both cohorts.
+Enter each outcome and the risk percentage for both cohorts.  
+Adjust the space between outcome groups and between each pair of bars!
 """)
 
-# Sidebar: set cohort names/colors
+# Sidebar: cohort and chart controls
 st.sidebar.header("Cohort Settings")
 cohort1_name = st.sidebar.text_input("Cohort 1 Name", "Cohort 1")
 cohort2_name = st.sidebar.text_input("Cohort 2 Name", "Cohort 2")
@@ -58,18 +59,21 @@ df = st.data_editor(
 st.session_state.data = df
 
 st.sidebar.header("Chart Appearance")
-# 1. Default to Horizontal
 orientation = st.sidebar.radio("Bar Orientation", ["Vertical", "Horizontal"], index=1)
 font_size = st.sidebar.slider("Font Size", 8, 28, 14)
-bar_width = st.sidebar.slider("Bar Group Width", 0.3, 0.9, 0.6)
-group_gap = st.sidebar.slider("Distance Between Bar Groups", 1.0, 3.0, 1.5, step=0.05)
+bar_width = st.sidebar.slider("Bar Width", 0.15, 0.45, 0.28)
+group_gap = st.sidebar.slider("Distance Between Bar Groups", 1.0, 4.0, 2.0, step=0.05)
+pair_gap = st.sidebar.slider("Spacing Between Cohort Bars in a Group", 0.10, 1.0, 0.40, step=0.01)
 gridlines = st.sidebar.checkbox("Show gridlines", value=True)
 show_legend = st.sidebar.checkbox("Show legend", value=True)
 show_values = st.sidebar.checkbox("Show values on bars", value=True)
 
 st.subheader("Bar Chart")
 
-def plot_2cohort_outcomes(df, cohort1, cohort2, color1, color2, orientation, font_size, bar_width, gridlines, show_values, show_legend, group_gap):
+def plot_2cohort_outcomes(
+    df, cohort1, cohort2, color1, color2, orientation, font_size, bar_width, gridlines,
+    show_values, show_legend, group_gap, pair_gap
+):
     if len(df) == 0:
         fig, ax = plt.subplots()
         ax.set_title("No data to plot.")
@@ -79,16 +83,17 @@ def plot_2cohort_outcomes(df, cohort1, cohort2, color1, color2, orientation, fon
     cohort1_vals = df[f"{cohort1} Risk (%)"].tolist()
     cohort2_vals = df[f"{cohort2} Risk (%)"].tolist()
     n = len(outcomes)
-
-    # -- Key change: group_gap multiplies the default spacing between groups --
-    ind = np.arange(n) * group_gap
-    width = bar_width / 2
+    
+    # The center of each outcome group
+    group_centers = np.arange(n) * group_gap
+    # Offset for the bar pairs in each group
+    pair_offset = pair_gap / 2
 
     fig, ax = plt.subplots(figsize=(max(6, 1.1 * n * group_gap), 5))
     if orientation == "Vertical":
-        bars1 = ax.bar(ind - width/2, cohort1_vals, width, label=cohort1, color=color1, edgecolor="#444")
-        bars2 = ax.bar(ind + width/2, cohort2_vals, width, label=cohort2, color=color2, edgecolor="#444")
-        ax.set_xticks(ind)
+        bars1 = ax.bar(group_centers - pair_offset, cohort1_vals, bar_width, label=cohort1, color=color1, edgecolor="#444")
+        bars2 = ax.bar(group_centers + pair_offset, cohort2_vals, bar_width, label=cohort2, color=color2, edgecolor="#444")
+        ax.set_xticks(group_centers)
         ax.set_xticklabels(outcomes, fontsize=font_size, rotation=20, ha='right')
         ax.set_ylabel("Risk (%)", fontsize=font_size + 2)
         ax.set_xlabel("Outcome", fontsize=font_size + 2)
@@ -100,13 +105,12 @@ def plot_2cohort_outcomes(df, cohort1, cohort2, color1, color2, orientation, fon
                 height = rect.get_height()
                 ax.text(rect.get_x() + rect.get_width()/2., height, f'{height:.2f}%', ha='center', va='bottom', fontsize=font_size)
         if show_legend:
-            # Place legend outside right
             ax.legend(fontsize=font_size, bbox_to_anchor=(1.04, 1), loc="upper left", borderaxespad=0)
         ax.grid(gridlines, axis='y', linestyle='--', alpha=0.4)
     else:
-        bars1 = ax.barh(ind - width/2, cohort1_vals, width, label=cohort1, color=color1, edgecolor="#444")
-        bars2 = ax.barh(ind + width/2, cohort2_vals, width, label=cohort2, color=color2, edgecolor="#444")
-        ax.set_yticks(ind)
+        bars1 = ax.barh(group_centers - pair_offset, cohort1_vals, bar_width, label=cohort1, color=color1, edgecolor="#444")
+        bars2 = ax.barh(group_centers + pair_offset, cohort2_vals, bar_width, label=cohort2, color=color2, edgecolor="#444")
+        ax.set_yticks(group_centers)
         ax.set_yticklabels(outcomes, fontsize=font_size)
         ax.set_xlabel("Risk (%)", fontsize=font_size + 2)
         ax.set_ylabel("Outcome", fontsize=font_size + 2)
@@ -138,7 +142,8 @@ fig = plot_2cohort_outcomes(
     gridlines=gridlines,
     show_values=show_values,
     show_legend=show_legend,
-    group_gap=group_gap
+    group_gap=group_gap,
+    pair_gap=pair_gap
 )
 
 st.pyplot(fig)
