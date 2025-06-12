@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
 from io import BytesIO
 
 st.set_page_config(page_title="TriNetX RR Bargraph Generator", layout="centered")
@@ -12,10 +11,10 @@ This app helps you create publication-quality bargraphs of Relative Risks for yo
 Enter your cohort names and RR values below, customize the look, and download as PNG!
 """)
 
-# --- Helper to create color pickers for each row ---
 def get_default_colors(n):
     palette = [
-        "#3498db", "#e74c3c", "#2ecc71", "#f1c40f", "#9b59b6", "#e67e22", "#1abc9c", "#34495e", "#95a5a6", "#fd79a8"
+        "#3498db", "#e74c3c", "#2ecc71", "#f1c40f", "#9b59b6",
+        "#e67e22", "#1abc9c", "#34495e", "#95a5a6", "#fd79a8"
     ]
     return [palette[i % len(palette)] for i in range(n)]
 
@@ -23,27 +22,43 @@ def get_default_colors(n):
 st.subheader("Step 1: Enter Cohort Data")
 
 def initialize_data():
-    return pd.DataFrame({
+    df = pd.DataFrame({
         'Cohort Name': ['Cohort A', 'Cohort B'],
         'Relative Risk': [1.25, 0.97],
-        'Bar Color': get_default_colors(2),
     })
+    df['Bar Color'] = get_default_colors(len(df))
+    return df
 
+# Get previous data or initialize
 data = st.session_state.get("data", initialize_data())
-# Use the color pickers in the sidebar for a better UI:
-edited_data = data.copy()
-n_rows = len(data)
 
-# Display the table with color pickers for each bar in the sidebar
+# Always ensure "Bar Color" column exists and is sized correctly
+if "Bar Color" not in data.columns or len(data["Bar Color"]) != len(data):
+    # Pad or shrink colors as needed
+    base_colors = get_default_colors(len(data))
+    if "Bar Color" in data.columns:
+        # Use existing colors for matching rows, fill rest
+        old_colors = list(data["Bar Color"]) + base_colors
+        data["Bar Color"] = old_colors[:len(data)]
+    else:
+        data["Bar Color"] = base_colors
+
+# Color pickers in sidebar for each row
 st.sidebar.header("Bar Colors")
-for i in range(n_rows):
+edited_data = data.copy()
+for i in range(len(edited_data)):
+    color_key = f"bar_color_{i}"
+    current_color = edited_data.at[i, "Bar Color"]
+    # Defensive: if NaN, assign default
+    if not isinstance(current_color, str) or not current_color.startswith("#"):
+        current_color = get_default_colors(len(edited_data))[i]
     edited_data.at[i, "Bar Color"] = st.sidebar.color_picker(
-        f"Color for {data.at[i, 'Cohort Name']}",
-        value=data.at[i, "Bar Color"] if pd.notnull(data.at[i, "Bar Color"]) else get_default_colors(n_rows)[i],
-        key=f"bar_color_{i}"
+        f"Color for {edited_data.at[i, 'Cohort Name'] or f'Cohort {i+1}'}",
+        value=current_color,
+        key=color_key
     )
 
-# Now allow main data editing without Bar Color in the main table
+# Main data editor for names and RR only
 table_no_color = edited_data.drop(columns=["Bar Color"])
 table_no_color = st.data_editor(
     table_no_color,
@@ -55,10 +70,13 @@ table_no_color = st.data_editor(
     },
     key="rr_table"
 )
-# Restore Bar Color column
+
+# Restore Bar Color after data editor changes
 edited_data["Cohort Name"] = table_no_color["Cohort Name"]
 edited_data["Relative Risk"] = table_no_color["Relative Risk"]
-# Keep it sorted/indexed as entered
+edited_data["Bar Color"] = edited_data["Bar Color"].fillna(get_default_colors(len(edited_data)))
+
+# Save in session state
 st.session_state.data = edited_data
 
 # --- Chart Options in Sidebar ---
@@ -82,89 +100,65 @@ def plot_bargraph(
     df, orientation, font_size, font_family, bar_width, gridlines,
     grayscale, x_label, y_label, show_values, axis_label_weight, pair_bars
 ):
+    import numpy as np
     fig, ax = plt.subplots(figsize=(8, 4.8))
 
     cohort_names = df['Cohort Name']
     rr_values = df['Relative Risk']
     bar_colors = ["#888888"] * len(df) if grayscale else df["Bar Color"].tolist()
-    indices = range(len(df))
+    indices = np.arange(len(df))
 
     if pair_bars and len(df) >= 2:
-        # Group in pairs (stacked groups of 2)
-        groups = [f"Group {i//2 + 1}" for i in range(len(df))]
-        unique_groups = []
+        # Group in pairs (side-by-side)
         xticks = []
         xticklabels = []
-        group_labels = []
-        group_values = []
-        group_colors = []
-
         for i in range(0, len(df), 2):
-            unique_groups.append(i//2)
-            group_labels.append([
-                cohort_names.iloc[i],
-                cohort_names.iloc[i+1] if i+1 < len(df) else ""
-            ])
-            group_values.append([
-                rr_values.iloc[i],
-                rr_values.iloc[i+1] if i+1 < len(df) else None
-            ])
-            group_colors.append([
-                bar_colors[i],
-                bar_colors[i+1] if i+1 < len(df) else "#888888" if grayscale else get_default_colors(1)[0]
-            ])
-            xticks.append(i//2)
-            label = ""
-            if group_labels[-1][1]:
-                label = f"{group_labels[-1][0]} vs\n{group_labels[-1][1]}"
-            else:
-                label = group_labels[-1][0]
+            label = cohort_names.iloc[i]
+            if i + 1 < len(df):
+                label += f" vs\n{cohort_names.iloc[i + 1]}"
+            xticks.append(i // 2)
             xticklabels.append(label)
-
-        import numpy as np
-        bar_width_actual = bar_width/2 if orientation == "Vertical" else bar_width
-
+        width = bar_width / 2
+        offset = 0.18
         if orientation == "Horizontal":
-            for idx, vals in enumerate(group_values):
-                pos = xticks[idx]
-                y1 = pos - 0.15
-                y2 = pos + 0.15
-                if vals[0] is not None:
-                    ax.barh(y1, vals[0], color=group_colors[idx][0], height=bar_width_actual, edgecolor="#444444")
+            for idx, i in enumerate(range(0, len(df), 2)):
+                y1 = idx - offset
+                y2 = idx + offset
+                if i < len(df):
+                    ax.barh(y1, rr_values.iloc[i], color=bar_colors[i], height=width, edgecolor="#444444")
                     if show_values:
-                        ax.text(vals[0], y1, f" {vals[0]:.2f}", va='center', ha='left', fontsize=font_size, fontname=font_family)
-                if vals[1] is not None:
-                    ax.barh(y2, vals[1], color=group_colors[idx][1], height=bar_width_actual, edgecolor="#444444")
+                        ax.text(rr_values.iloc[i], y1, f" {rr_values.iloc[i]:.2f}", va='center', ha='left', fontsize=font_size, fontname=font_family)
+                if i + 1 < len(df):
+                    ax.barh(y2, rr_values.iloc[i + 1], color=bar_colors[i + 1], height=width, edgecolor="#444444")
                     if show_values:
-                        ax.text(vals[1], y2, f" {vals[1]:.2f}", va='center', ha='left', fontsize=font_size, fontname=font_family)
-            ax.set_yticks(xticks)
+                        ax.text(rr_values.iloc[i + 1], y2, f" {rr_values.iloc[i + 1]:.2f}", va='center', ha='left', fontsize=font_size, fontname=font_family)
+            ax.set_yticks(range(len(xticks)))
             ax.set_yticklabels(xticklabels, fontsize=font_size, fontname=font_family)
-            ax.set_xlabel(y_label, fontsize=font_size+2, fontweight=axis_label_weight, fontname=font_family)
-            ax.set_ylabel(x_label, fontsize=font_size+2, fontweight=axis_label_weight, fontname=font_family)
+            ax.set_xlabel(y_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
+            ax.set_ylabel(x_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
         else:
-            for idx, vals in enumerate(group_values):
-                pos = xticks[idx]
-                x1 = pos - 0.15
-                x2 = pos + 0.15
-                if vals[0] is not None:
-                    ax.bar(x1, vals[0], color=group_colors[idx][0], width=bar_width_actual, edgecolor="#444444")
+            for idx, i in enumerate(range(0, len(df), 2)):
+                x1 = idx - offset
+                x2 = idx + offset
+                if i < len(df):
+                    ax.bar(x1, rr_values.iloc[i], color=bar_colors[i], width=width, edgecolor="#444444")
                     if show_values:
-                        ax.text(x1, vals[0], f"{vals[0]:.2f}", ha='center', va='bottom', fontsize=font_size, fontname=font_family)
-                if vals[1] is not None:
-                    ax.bar(x2, vals[1], color=group_colors[idx][1], width=bar_width_actual, edgecolor="#444444")
+                        ax.text(x1, rr_values.iloc[i], f"{rr_values.iloc[i]:.2f}", ha='center', va='bottom', fontsize=font_size, fontname=font_family)
+                if i + 1 < len(df):
+                    ax.bar(x2, rr_values.iloc[i + 1], color=bar_colors[i + 1], width=width, edgecolor="#444444")
                     if show_values:
-                        ax.text(x2, vals[1], f"{vals[1]:.2f}", ha='center', va='bottom', fontsize=font_size, fontname=font_family)
-            ax.set_xticks(xticks)
+                        ax.text(x2, rr_values.iloc[i + 1], f"{rr_values.iloc[i + 1]:.2f}", ha='center', va='bottom', fontsize=font_size, fontname=font_family)
+            ax.set_xticks(range(len(xticks)))
             ax.set_xticklabels(xticklabels, fontsize=font_size, fontname=font_family)
-            ax.set_ylabel(y_label, fontsize=font_size+2, fontweight=axis_label_weight, fontname=font_family)
-            ax.set_xlabel(x_label, fontsize=font_size+2, fontweight=axis_label_weight, fontname=font_family)
+            ax.set_ylabel(y_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
+            ax.set_xlabel(x_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
     else:
         if orientation == "Horizontal":
             bars = ax.barh(indices, rr_values, color=bar_colors, edgecolor="#444444", height=bar_width)
             ax.set_yticks(indices)
             ax.set_yticklabels(cohort_names, fontsize=font_size, fontname=font_family)
-            ax.set_xlabel(y_label, fontsize=font_size+2, fontweight=axis_label_weight, fontname=font_family)
-            ax.set_ylabel(x_label, fontsize=font_size+2, fontweight=axis_label_weight, fontname=font_family)
+            ax.set_xlabel(y_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
+            ax.set_ylabel(x_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
             if show_values:
                 for i, v in enumerate(rr_values):
                     ax.text(v, i, f" {v:.2f}", va='center', ha='left', fontsize=font_size, fontname=font_family)
@@ -172,13 +166,12 @@ def plot_bargraph(
             bars = ax.bar(indices, rr_values, color=bar_colors, edgecolor="#444444", width=bar_width)
             ax.set_xticks(indices)
             ax.set_xticklabels(cohort_names, fontsize=font_size, fontname=font_family, rotation=20, ha='right')
-            ax.set_ylabel(y_label, fontsize=font_size+2, fontweight=axis_label_weight, fontname=font_family)
-            ax.set_xlabel(x_label, fontsize=font_size+2, fontweight=axis_label_weight, fontname=font_family)
+            ax.set_ylabel(y_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
+            ax.set_xlabel(x_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
             if show_values:
                 for i, v in enumerate(rr_values):
                     ax.text(i, v, f"{v:.2f}", ha='center', va='bottom', fontsize=font_size, fontname=font_family)
 
-    # Gridlines
     ax.grid(gridlines, axis='y' if orientation == "Vertical" else 'x', linestyle='--', alpha=0.4)
     plt.tight_layout()
     plt.box(False)
