@@ -180,15 +180,3 @@ st.download_button(
     file_name="relative_risk_bargraph.png",
     mime="image/png"
 )
-
-# --- Features Recap ---
-with st.expander("Available Features & Options"):
-    st.markdown("""
-- **Custom Axis Titles:** Set X and Y axis labels in the sidebar.
-- **Bar/Value Spacing:** Use the slider to set space between bars and value labels.
-- **Grouping Tools:** Enter `##Heading Name` in Cohort Name to create group headers/separators in your chart.
-- **Grid Lines:** Toggle gridlines on/off for a cleaner or more analytic look.
-- **Font, Color, Grayscale, Download:** Customize everything; export as PNG.
-- **Orientation:** Horizontal or vertical bar charts (horizontal is default).
-- **Dynamic Rows:** Add or remove rows in the table for unlimited cohorts.
-    """)
