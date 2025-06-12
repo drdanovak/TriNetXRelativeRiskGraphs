@@ -5,27 +5,49 @@ from io import BytesIO
 
 st.set_page_config(page_title="TriNetX Grouped Bargraph Generator", layout="centered")
 
-def get_default_colors(n):
-    palette = [
-        "#3498db", "#e74c3c", "#2ecc71", "#f1c40f", "#9b59b6",
-        "#e67e22", "#1abc9c", "#34495e", "#95a5a6", "#fd79a8"
+# Helper: return a color for each cohort, consistent across groups
+def get_palette():
+    return [
+        "#8e44ad",  # purple
+        "#27ae60",  # green
+        "#e74c3c",  # red
+        "#2980b9",  # blue
+        "#f1c40f",  # yellow
+        "#d35400",  # orange
+        "#16a085",  # teal
+        "#2c3e50",  # dark blue
+        "#fd79a8",  # pink
+        "#636e72",  # gray
+        "#b2bec3",  # light gray
+        "#00b894",  # light green
     ]
-    return [palette[i % len(palette)] for i in range(n)]
+
+def get_cohort_colors(cohort_names):
+    palette = get_palette()
+    unique_cohorts = []
+    cohort_color_map = {}
+    for name in cohort_names:
+        if pd.isna(name) or name.strip() == "":
+            continue
+        if name not in cohort_color_map:
+            color = palette[len(unique_cohorts) % len(palette)]
+            cohort_color_map[name] = color
+            unique_cohorts.append(name)
+    return cohort_color_map
 
 st.title("TriNetX Grouped Bargraph Generator")
 st.markdown("""
-- Use "Header" rows to create group titles (e.g., "Anemia", "Cancer").
-- Use "Data" rows to add cohort bars under each header.
-- You can add/remove/reorder rows as you like!
+- **Add unlimited disease groups** by adding "Header" rows.
+- **Add any number of cohorts under each group** as "Data" rows.
+- **Cohort colors are consistent across all groups**.
 """)
 
-# Initialize data
 def initialize_data():
     df = pd.DataFrame({
         "Type": ["Header", "Data", "Data", "Header", "Data", "Data"],
-        "Label": ["Anemia", "Cohort 1", "Cohort 2", "Cancer", "Cohort 1", "Cohort 2"],
-        "Relative Risk": [None, 1.1, 1.3, None, 0.9, 1.4],
-        "Bar Color": ["#FFFFFF", "#3498db", "#e74c3c", "#FFFFFF", "#2ecc71", "#f1c40f"]
+        "Group Label": ["Anemia", "", "", "Cancer", "", ""],
+        "Cohort Label": ["", "Cohort 1", "Cohort 2", "", "Cohort 1", "Cohort 2"],
+        "Relative Risk": [None, 1.1, 1.3, None, 0.9, 1.4]
     })
     return df
 
@@ -33,81 +55,57 @@ if "data" not in st.session_state:
     st.session_state.data = initialize_data()
 data = st.session_state.data.copy()
 
-# Always ensure correct columns and lengths
-needed = ["Type", "Label", "Relative Risk", "Bar Color"]
+# Always ensure columns exist
+needed = ["Type", "Group Label", "Cohort Label", "Relative Risk"]
 for col in needed:
     if col not in data.columns:
         if col == "Type":
             data[col] = ["Data"] * len(data)
-        elif col == "Label":
-            data[col] = [f"Row {i+1}" for i in range(len(data))]
+        elif col == "Group Label":
+            data[col] = ["" for _ in range(len(data))]
+        elif col == "Cohort Label":
+            data[col] = [f"Cohort {i+1}" for i in range(len(data))]
         elif col == "Relative Risk":
             data[col] = [None] * len(data)
-        elif col == "Bar Color":
-            data[col] = get_default_colors(len(data))
     elif len(data[col]) != len(data):
-        if col == "Bar Color":
-            data[col] = (list(data[col]) + get_default_colors(len(data)))[:len(data)]
+        if col == "Group Label":
+            data[col] = (list(data[col]) + [""] * len(data))[:len(data)]
+        elif col == "Cohort Label":
+            data[col] = (list(data[col]) + [f"Cohort {i+1}" for i in range(len(data))])[:len(data)]
         elif col == "Relative Risk":
-            data[col] = (list(data[col]) + [None]*len(data))[:len(data)]
-        elif col == "Label":
-            data[col] = (list(data[col]) + [f"Row {i+1}" for i in range(len(data))])[:len(data)]
+            data[col] = (list(data[col]) + [None] * len(data))[:len(data)]
         elif col == "Type":
             data[col] = (list(data[col]) + ["Data"]*len(data))[:len(data)]
 
-# Sidebar: set Type and Color for each row
-st.sidebar.header("Rows: Header or Data")
-for i in range(len(data)):
-    # Row type
-    type_default = 0 if data.at[i, "Type"] == "Data" else 1
-    rowtype = st.sidebar.selectbox(
-        f"Row {i+1} Type",
-        options=["Data", "Header"],
-        index=type_default,
-        key=f"type_{i}"
-    )
-    data.at[i, "Type"] = rowtype
-    # Color
-    if rowtype == "Data":
-        color = data.at[i, "Bar Color"]
-        if not isinstance(color, str) or not color.startswith("#"):
-            color = get_default_colors(len(data))[i]
-        data.at[i, "Bar Color"] = st.sidebar.color_picker(
-            f"Bar Color for {data.at[i, 'Label'] or f'Row {i+1}'}",
-            value=color,
-            key=f"color_{i}"
-        )
-    else:
-        data.at[i, "Bar Color"] = "#FFFFFF"
-
-# Main table editing for Type, Label, and Relative Risk
-table_for_edit = data[["Type", "Label", "Relative Risk"]]
+# Table editing
+table_for_edit = data[["Type", "Group Label", "Cohort Label", "Relative Risk"]]
 table_for_edit = st.data_editor(
     table_for_edit,
     num_rows="dynamic",
     use_container_width=True,
     column_config={
         "Type": st.column_config.SelectboxColumn("Type", options=["Data", "Header"]),
-        "Label": st.column_config.TextColumn("Label"),
+        "Group Label": st.column_config.TextColumn("Disease/Group (for headers)"),
+        "Cohort Label": st.column_config.TextColumn("Cohort Name"),
         "Relative Risk": st.column_config.NumberColumn("Relative Risk", min_value=0.01, step=0.01, required=False),
     },
     key="data_table"
 )
 data["Type"] = table_for_edit["Type"]
-data["Label"] = table_for_edit["Label"]
+data["Group Label"] = table_for_edit["Group Label"]
+data["Cohort Label"] = table_for_edit["Cohort Label"]
 data["Relative Risk"] = table_for_edit["Relative Risk"]
 
-# Clean up colors if new/removed rows
-default_colors = get_default_colors(len(data))
-for i in range(len(data)):
-    if data.at[i, "Type"] == "Data":
-        color = data.at[i, "Bar Color"]
-        if not isinstance(color, str) or not color.startswith("#"):
-            data.at[i, "Bar Color"] = default_colors[i]
-    else:
-        data.at[i, "Bar Color"] = "#FFFFFF"
-
 st.session_state.data = data
+
+# Determine all unique, non-empty cohort names
+cohort_names = [name for i, name in enumerate(data["Cohort Label"]) if data.at[i, "Type"] == "Data" and pd.notna(name) and name.strip() != ""]
+cohort_color_map = get_cohort_colors(cohort_names)
+
+# Sidebar: Show color assignments for each cohort (user cannot edit directly for consistency)
+st.sidebar.header("Cohort Color Key")
+for cohort, color in cohort_color_map.items():
+    st.sidebar.markdown(f'<div style="display:inline-block;width:20px;height:20px;background:{color};margin-right:8px;border-radius:4px"></div> {cohort}', unsafe_allow_html=True)
 
 # Sidebar - appearance
 st.sidebar.header("Appearance")
@@ -122,10 +120,11 @@ y_label = st.sidebar.text_input("Y-axis Label", "Relative Risk")
 show_values = st.sidebar.checkbox("Show values on bars", value=True)
 axis_label_weight = st.sidebar.selectbox("Axis Label Weight", ["normal", "bold", "heavy"], index=1)
 
-# Plotting
-st.subheader("Step 2: Bar Graph with Group Headings")
+st.subheader("Step 2: Bar Graph with Disease Groupings and Cohort Colors")
 
-def plot_with_headings(df, orientation, font_size, font_family, bar_width, gridlines, grayscale, x_label, y_label, show_values, axis_label_weight):
+def plot_with_headings_and_cohort_colors(
+    df, orientation, font_size, font_family, bar_width, gridlines, grayscale, x_label, y_label, show_values, axis_label_weight, cohort_color_map
+):
     import numpy as np
     fig, ax = plt.subplots(figsize=(10, 6))
     pos = 0
@@ -135,17 +134,21 @@ def plot_with_headings(df, orientation, font_size, font_family, bar_width, gridl
     bar_colors = []
     header_positions = []
     header_labels = []
-    tick_positions = []
+
+    # For each row: if Header, insert; if Data, plot
     for i, row in df.iterrows():
         if row["Type"] == "Header":
             header_positions.append(pos)
-            header_labels.append(row["Label"])
-        elif row["Type"] == "Data" and pd.notnull(row["Relative Risk"]):
+            header_labels.append(row["Group Label"])
+        elif row["Type"] == "Data" and pd.notnull(row["Relative Risk"]) and pd.notna(row["Cohort Label"]) and row["Cohort Label"].strip() != "":
             bar_positions.append(pos)
-            bar_labels.append(row["Label"])
+            bar_labels.append(row["Cohort Label"])
             bar_values.append(row["Relative Risk"])
-            bar_colors.append("#888888" if grayscale else row["Bar Color"])
-            tick_positions.append(pos)
+            cohort = row["Cohort Label"]
+            if grayscale:
+                bar_colors.append("#888888")
+            else:
+                bar_colors.append(cohort_color_map.get(cohort, "#222222"))
             pos += 1
         pos += 0.25 if row["Type"] == "Header" else 0
 
@@ -180,7 +183,7 @@ def plot_with_headings(df, orientation, font_size, font_family, bar_width, gridl
     ax.spines[['top', 'right']].set_visible(False)
     return fig
 
-fig = plot_with_headings(
+fig = plot_with_headings_and_cohort_colors(
     data,
     orientation=orientation,
     font_size=font_size,
@@ -192,6 +195,7 @@ fig = plot_with_headings(
     y_label=y_label,
     show_values=show_values,
     axis_label_weight=axis_label_weight,
+    cohort_color_map=cohort_color_map,
 )
 
 st.pyplot(fig)
