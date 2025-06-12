@@ -5,12 +5,6 @@ from io import BytesIO
 
 st.set_page_config(page_title="TriNetX RR Bargraph Generator", layout="centered")
 
-st.title("TriNetX Relative Risk Bargraph Generator")
-st.markdown("""
-This app helps you create publication-quality bargraphs of Relative Risks for your TriNetX cohorts.  
-Enter your cohort names and RR values below, customize the look, and download as PNG!
-""")
-
 def get_default_colors(n):
     palette = [
         "#3498db", "#e74c3c", "#2ecc71", "#f1c40f", "#9b59b6",
@@ -18,73 +12,77 @@ def get_default_colors(n):
     ]
     return [palette[i % len(palette)] for i in range(n)]
 
-# --- Table Input Section ---
-st.subheader("Step 1: Enter Cohort Data")
+st.title("TriNetX Relative Risk Bargraph Generator")
+st.markdown("""
+Add group headers by changing row type in the sidebar.  
+Group headers will appear as bold text separators in your bar graph!
+""")
 
 def initialize_data():
     df = pd.DataFrame({
-        'Cohort Name': ['Cohort A', 'Cohort B'],
+        'Row Type': ['Data', 'Data'],
+        'Label': ['Cohort A', 'Cohort B'],
         'Relative Risk': [1.25, 0.97],
-        'Bar Color': get_default_colors(2)
+        'Bar Color': get_default_colors(2),
     })
     return df
 
-# Always use and update session state
 if "data" not in st.session_state:
     st.session_state.data = initialize_data()
-
 data = st.session_state.data.copy()
 
-# Ensure 'Bar Color' exists and is the right length
-if "Bar Color" not in data.columns:
-    data["Bar Color"] = get_default_colors(len(data))
-elif len(data["Bar Color"]) != len(data):
-    colors = list(data["Bar Color"]) + get_default_colors(len(data))
-    data["Bar Color"] = colors[:len(data)]
-
-# Sidebar color pickers for each row
-st.sidebar.header("Bar Colors")
+# Sidebar to set Row Type and Bar Color for each row
+st.sidebar.header("Customize Table Rows")
 for i in range(len(data)):
-    color_key = f"bar_color_{i}"
-    cohort_label = data.at[i, "Cohort Name"] if pd.notnull(data.at[i, "Cohort Name"]) else f"Cohort {i+1}"
-    current_color = data.at[i, "Bar Color"]
-    if not isinstance(current_color, str) or not current_color.startswith("#"):
-        current_color = get_default_colors(len(data))[i]
-    data.at[i, "Bar Color"] = st.sidebar.color_picker(
-        f"Color for {cohort_label}",
-        value=current_color,
-        key=color_key
+    row_type = st.sidebar.selectbox(
+        f"Row {i+1} Type",
+        options=["Data", "Header"],
+        index=0 if data.at[i, "Row Type"] == "Data" else 1,
+        key=f"rowtype_{i}"
     )
+    data.at[i, "Row Type"] = row_type
+    if row_type == "Data":
+        # Only show color picker for data rows
+        color = data.at[i, "Bar Color"]
+        if not isinstance(color, str) or not color.startswith("#"):
+            color = get_default_colors(len(data))[i]
+        data.at[i, "Bar Color"] = st.sidebar.color_picker(
+            f"Color for {data.at[i, 'Label'] or f'Row {i+1}'}",
+            value=color,
+            key=f"color_{i}"
+        )
+    else:
+        data.at[i, "Bar Color"] = "#FFFFFF"  # Not used
 
-# Main data editor (names and RR only)
-table_no_color = data.drop(columns=["Bar Color"])
+# Main editor for Label and RR
+table_no_color = data[["Row Type", "Label", "Relative Risk"]]
 table_no_color = st.data_editor(
     table_no_color,
     num_rows="dynamic",
     use_container_width=True,
     column_config={
-        "Cohort Name": st.column_config.TextColumn("Cohort Name"),
+        "Row Type": st.column_config.SelectboxColumn("Row Type", options=["Data", "Header"]),
+        "Label": st.column_config.TextColumn("Label"),
         "Relative Risk": st.column_config.NumberColumn("Relative Risk", min_value=0.01, step=0.01),
     },
-    key="rr_table"
+    key="table_main"
 )
-
-# Restore 'Bar Color' after data editor changes
-data["Cohort Name"] = table_no_color["Cohort Name"]
+data["Label"] = table_no_color["Label"]
 data["Relative Risk"] = table_no_color["Relative Risk"]
+data["Row Type"] = table_no_color["Row Type"]
 
-# Safe: ensure all colors are valid hex strings
+# Reapply safe default color to any new/changed rows
 default_colors = get_default_colors(len(data))
 for i in range(len(data)):
-    color = data.at[i, "Bar Color"]
-    if not isinstance(color, str) or not color.startswith("#"):
-        data.at[i, "Bar Color"] = default_colors[i]
+    if data.at[i, "Row Type"] == "Data":
+        color = data.at[i, "Bar Color"]
+        if not isinstance(color, str) or not color.startswith("#"):
+            data.at[i, "Bar Color"] = default_colors[i]
 
-# Save back to session state
 st.session_state.data = data
 
-# --- Chart Options in Sidebar ---
-st.sidebar.header("🛠️ Customize Appearance")
+# Appearance options
+st.sidebar.header("🛠️ Appearance")
 orientation = st.sidebar.radio("Bar Orientation", ["Horizontal", "Vertical"], index=0)
 font_size = st.sidebar.slider("Font Size", 8, 28, 14)
 font_family = st.sidebar.selectbox("Font Family", ["DejaVu Sans", "Arial", "Helvetica", "Times New Roman", "Courier New"])
@@ -95,86 +93,62 @@ x_label = st.sidebar.text_input("X-axis Label", "Cohort")
 y_label = st.sidebar.text_input("Y-axis Label", "Relative Risk")
 show_values = st.sidebar.checkbox("Show values on bars", value=True)
 axis_label_weight = st.sidebar.selectbox("Axis Label Weight", ["normal", "bold", "heavy"], index=1)
-pair_bars = st.sidebar.checkbox("Group bars into pairs (side-by-side)?", value=False)
 
-# --- Draw Chart ---
 st.subheader("Step 2: View & Download Your Bargraph")
 
-def plot_bargraph(
-    df, orientation, font_size, font_family, bar_width, gridlines,
-    grayscale, x_label, y_label, show_values, axis_label_weight, pair_bars
-):
+def plot_grouped_bargraph(df, orientation, font_size, font_family, bar_width, gridlines, grayscale, x_label, y_label, show_values, axis_label_weight):
     import numpy as np
-    fig, ax = plt.subplots(figsize=(8, 4.8))
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    y_pos = 0
+    yticks = []
+    ylabels = []
+    colors = []
+    bar_positions = []
+    bar_values = []
+    group_labels = []
+    group_positions = []
 
-    cohort_names = df['Cohort Name']
-    rr_values = df['Relative Risk']
-    bar_colors = ["#888888"] * len(df) if grayscale else df["Bar Color"].tolist()
-    indices = np.arange(len(df))
-
-    if pair_bars and len(df) >= 2:
-        # Group in pairs (side-by-side)
-        xticks = []
-        xticklabels = []
-        for i in range(0, len(df), 2):
-            label = str(cohort_names.iloc[i])
-            if i + 1 < len(df):
-                label += f" vs\n{cohort_names.iloc[i + 1]}"
-            xticks.append(i // 2)
-            xticklabels.append(label)
-        width = bar_width / 2
-        offset = 0.18
-        if orientation == "Horizontal":
-            for idx, i in enumerate(range(0, len(df), 2)):
-                y1 = idx - offset
-                y2 = idx + offset
-                if i < len(df):
-                    ax.barh(y1, rr_values.iloc[i], color=bar_colors[i], height=width, edgecolor="#444444")
-                    if show_values:
-                        ax.text(rr_values.iloc[i], y1, f" {rr_values.iloc[i]:.2f}", va='center', ha='left', fontsize=font_size, fontname=font_family)
-                if i + 1 < len(df):
-                    ax.barh(y2, rr_values.iloc[i + 1], color=bar_colors[i + 1], height=width, edgecolor="#444444")
-                    if show_values:
-                        ax.text(rr_values.iloc[i + 1], y2, f" {rr_values.iloc[i + 1]:.2f}", va='center', ha='left', fontsize=font_size, fontname=font_family)
-            ax.set_yticks(range(len(xticks)))
-            ax.set_yticklabels(xticklabels, fontsize=font_size, fontname=font_family)
-            ax.set_xlabel(y_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
-            ax.set_ylabel(x_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
+    for i, row in df.iterrows():
+        if row["Row Type"] == "Header":
+            # Track this y-position for header label
+            group_labels.append((row["Label"], y_pos))
         else:
-            for idx, i in enumerate(range(0, len(df), 2)):
-                x1 = idx - offset
-                x2 = idx + offset
-                if i < len(df):
-                    ax.bar(x1, rr_values.iloc[i], color=bar_colors[i], width=width, edgecolor="#444444")
-                    if show_values:
-                        ax.text(x1, rr_values.iloc[i], f"{rr_values.iloc[i]:.2f}", ha='center', va='bottom', fontsize=font_size, fontname=font_family)
-                if i + 1 < len(df):
-                    ax.bar(x2, rr_values.iloc[i + 1], color=bar_colors[i + 1], width=width, edgecolor="#444444")
-                    if show_values:
-                        ax.text(x2, rr_values.iloc[i + 1], f"{rr_values.iloc[i + 1]:.2f}", ha='center', va='bottom', fontsize=font_size, fontname=font_family)
-            ax.set_xticks(range(len(xticks)))
-            ax.set_xticklabels(xticklabels, fontsize=font_size, fontname=font_family)
-            ax.set_ylabel(y_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
-            ax.set_xlabel(x_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
+            bar_positions.append(y_pos)
+            ylabels.append(row["Label"])
+            bar_values.append(row["Relative Risk"])
+            if grayscale:
+                colors.append("#888888")
+            else:
+                colors.append(row["Bar Color"])
+            y_pos += 1
+        y_pos += 0.15 if row["Row Type"] == "Header" else 0
+
+    if orientation == "Horizontal":
+        ax.barh(bar_positions, bar_values, color=colors, edgecolor="#444444", height=bar_width)
+        ax.set_yticks(bar_positions)
+        ax.set_yticklabels(ylabels, fontsize=font_size, fontname=font_family)
+        ax.set_xlabel(y_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
+        ax.set_ylabel(x_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
+        # Show values
+        if show_values:
+            for y, v in zip(bar_positions, bar_values):
+                ax.text(v, y, f" {v:.2f}", va='center', ha='left', fontsize=font_size, fontname=font_family)
+        # Group headers as bold labels
+        for text, pos in group_labels:
+            ax.text(ax.get_xlim()[0], pos-0.1, text, va='center', ha='left', fontsize=font_size+2, fontweight='bold', fontname=font_family, color='#333333', backgroundcolor="#F2F2F2")
     else:
-        if orientation == "Horizontal":
-            bars = ax.barh(indices, rr_values, color=bar_colors, edgecolor="#444444", height=bar_width)
-            ax.set_yticks(indices)
-            ax.set_yticklabels(cohort_names, fontsize=font_size, fontname=font_family)
-            ax.set_xlabel(y_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
-            ax.set_ylabel(x_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
-            if show_values:
-                for i, v in enumerate(rr_values):
-                    ax.text(v, i, f" {v:.2f}", va='center', ha='left', fontsize=font_size, fontname=font_family)
-        else:
-            bars = ax.bar(indices, rr_values, color=bar_colors, edgecolor="#444444", width=bar_width)
-            ax.set_xticks(indices)
-            ax.set_xticklabels(cohort_names, fontsize=font_size, fontname=font_family, rotation=20, ha='right')
-            ax.set_ylabel(y_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
-            ax.set_xlabel(x_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
-            if show_values:
-                for i, v in enumerate(rr_values):
-                    ax.text(i, v, f"{v:.2f}", ha='center', va='bottom', fontsize=font_size, fontname=font_family)
+        ax.bar(bar_positions, bar_values, color=colors, edgecolor="#444444", width=bar_width)
+        ax.set_xticks(bar_positions)
+        ax.set_xticklabels(ylabels, fontsize=font_size, fontname=font_family, rotation=20, ha='right')
+        ax.set_ylabel(y_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
+        ax.set_xlabel(x_label, fontsize=font_size + 2, fontweight=axis_label_weight, fontname=font_family)
+        # Show values
+        if show_values:
+            for x, v in zip(bar_positions, bar_values):
+                ax.text(x, v, f"{v:.2f}", ha='center', va='bottom', fontsize=font_size, fontname=font_family)
+        # Group headers as bold labels
+        for text, pos in group_labels:
+            ax.text(pos-0.1, ax.get_ylim()[1], text, va='bottom', ha='center', fontsize=font_size+2, fontweight='bold', fontname=font_family, color='#333333', backgroundcolor="#F2F2F2", rotation=0, clip_on=False)
 
     ax.grid(gridlines, axis='y' if orientation == "Vertical" else 'x', linestyle='--', alpha=0.4)
     plt.tight_layout()
@@ -182,7 +156,7 @@ def plot_bargraph(
     ax.spines[['top', 'right']].set_visible(False)
     return fig
 
-fig = plot_bargraph(
+fig = plot_grouped_bargraph(
     data,
     orientation=orientation,
     font_size=font_size,
@@ -194,12 +168,10 @@ fig = plot_bargraph(
     y_label=y_label,
     show_values=show_values,
     axis_label_weight=axis_label_weight,
-    pair_bars=pair_bars,
 )
 
 st.pyplot(fig)
 
-# --- Download as PNG ---
 buf = BytesIO()
 fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
 st.download_button(
