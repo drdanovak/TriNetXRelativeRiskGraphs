@@ -1,3 +1,4 @@
-pandas
-matplotlib.pyplot
-io
+streamlit>=1.24.0
+pandas>=1.5.0
+matplotlib>=3.6.0
+fonttools
