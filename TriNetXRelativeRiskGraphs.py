@@ -64,30 +64,34 @@ group_boundaries = []
 group_labels = []
 
 current_group = ""
+bar_positions = []  # Track position for each actual bar (excluding group headings)
 for i, row in data.iterrows():
     name = row["Cohort Name"]
     if name.startswith("##"):
         current_group = name.replace("##", "").strip()
-        group_boundaries.append(len(plot_labels))
+        group_boundaries.append(len(plot_labels))  # Group headings are *between* bars
         group_labels.append(current_group)
     elif pd.notnull(row["Relative Risk"]):
         plot_labels.append(name)
         plot_values.append(float(row["Relative Risk"]))
+        bar_positions.append(i)
 
-indices = np.arange(len(plot_labels))
+num_bars = len(plot_labels)
+# Dynamically scale figure height to avoid crowding
+fig_height = max(4, num_bars * 0.65) if orientation == "Horizontal" else 5
 
-# --- Plotting ---
-fig, ax = plt.subplots(figsize=(7, max(4, len(plot_labels) * 0.6)))
+fig, ax = plt.subplots(figsize=(7, fig_height))
 plt.rcParams.update({'font.size': font_size, 'font.family': font_family})
 fig.patch.set_facecolor(bg_color)
 ax.set_facecolor(bg_color)
 
+indices = np.arange(num_bars)
 bar_kwargs = {'color': bar_color, 'edgecolor': axis_color}
 
 if orientation == "Horizontal":
     bars = ax.barh(indices, plot_values, **bar_kwargs)
     ax.set_yticks(indices)
-    ax.set_yticklabels(plot_labels, color=axis_color)
+    ax.set_yticklabels(plot_labels, color=axis_color, fontsize=font_size)
     ax.set_xlabel(custom_xlabel, color=axis_color)
     ax.set_ylabel(custom_ylabel, color=axis_color)
     ax.set_xticklabels(ax.get_xticks(), color=axis_color)
@@ -110,7 +114,8 @@ if orientation == "Horizontal":
 else:
     bars = ax.bar(indices, plot_values, **bar_kwargs)
     ax.set_xticks(indices)
-    ax.set_xticklabels(plot_labels, color=axis_color, rotation=20)
+    # Use sharp rotation to prevent overlap
+    ax.set_xticklabels(plot_labels, color=axis_color, rotation=45, ha='right', fontsize=font_size)
     ax.set_ylabel(custom_ylabel, color=axis_color)
     ax.set_xlabel(custom_xlabel, color=axis_color)
     ax.set_yticklabels(ax.get_yticks(), color=axis_color)
@@ -130,27 +135,28 @@ else:
                 color=axis_color, fontweight="bold"
             )
 
+plt.tight_layout()  # Prevents label overlap in tight plots
+
 # --- Group Headings / Separators ---
 for idx, group_start in enumerate(group_boundaries):
-    if orientation == "Horizontal":
-        ax.axhline(group_start - 0.5, color=axis_color, linewidth=1, linestyle='--')
-        if group_start < len(plot_labels):
+    if 0 < group_start <= num_bars:
+        if orientation == "Horizontal":
+            ax.axhline(group_start - 0.5, color=axis_color, linewidth=1, linestyle='--')
             ax.text(
-                ax.get_xlim()[0], group_start, group_labels[idx],
-                va='center', ha='left',
+                ax.get_xlim()[0], group_start - 0.5, group_labels[idx],
+                va='bottom', ha='left',
                 color=axis_color, fontweight="bold",
                 fontsize=font_size + 1,
-                bbox=dict(facecolor=bg_color, edgecolor='none')
+                bbox=dict(facecolor=bg_color, edgecolor='none', boxstyle='round,pad=0.3')
             )
-    else:
-        ax.axvline(group_start - 0.5, color=axis_color, linewidth=1, linestyle='--')
-        if group_start < len(plot_labels):
+        else:
+            ax.axvline(group_start - 0.5, color=axis_color, linewidth=1, linestyle='--')
             ax.text(
-                group_start, ax.get_ylim()[1], group_labels[idx],
+                group_start - 0.5, ax.get_ylim()[1], group_labels[idx],
                 va='bottom', ha='center',
                 color=axis_color, fontweight="bold",
                 fontsize=font_size + 1,
-                bbox=dict(facecolor=bg_color, edgecolor='none')
+                bbox=dict(facecolor=bg_color, edgecolor='none', boxstyle='round,pad=0.3')
             )
 
 # --- Gridlines ---
@@ -180,3 +186,15 @@ st.download_button(
     file_name="relative_risk_bargraph.png",
     mime="image/png"
 )
+
+# --- Features Recap ---
+with st.expander("Available Features & Options"):
+    st.markdown("""
+- **Custom Axis Titles:** Set X and Y axis labels in the sidebar.
+- **Bar/Value Spacing:** Use the slider to set space between bars and value labels.
+- **Grouping Tools:** Enter `##Heading Name` in Cohort Name to create group headers/separators in your chart.
+- **Grid Lines:** Toggle gridlines on/off for a cleaner or more analytic look.
+- **Font, Color, Grayscale, Download:** Customize everything; export as PNG.
+- **Orientation:** Horizontal or vertical bar charts (horizontal is default).
+- **Dynamic Rows:** Add or remove rows in the table for unlimited cohorts.
+    """)
