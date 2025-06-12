@@ -169,4 +169,3 @@ with st.expander("Available Options and Features"):
 - **Orientation**: Horizontal or vertical bar charts (horizontal is default).
 - **Dynamic Rows**: Add or remove rows in the table for unlimited cohorts.
     """)
-
