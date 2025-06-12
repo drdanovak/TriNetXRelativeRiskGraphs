@@ -58,15 +58,18 @@ df = st.data_editor(
 st.session_state.data = df
 
 st.sidebar.header("Chart Appearance")
-orientation = st.sidebar.radio("Bar Orientation", ["Vertical", "Horizontal"], index=0)
+# 1. Default to Horizontal
+orientation = st.sidebar.radio("Bar Orientation", ["Vertical", "Horizontal"], index=1)
 font_size = st.sidebar.slider("Font Size", 8, 28, 14)
 bar_width = st.sidebar.slider("Bar Group Width", 0.3, 0.9, 0.6)
+group_gap = st.sidebar.slider("Distance Between Bar Groups", 1.0, 3.0, 1.5, step=0.05)
 gridlines = st.sidebar.checkbox("Show gridlines", value=True)
+show_legend = st.sidebar.checkbox("Show legend", value=True)
 show_values = st.sidebar.checkbox("Show values on bars", value=True)
 
 st.subheader("Bar Chart")
 
-def plot_2cohort_outcomes(df, cohort1, cohort2, color1, color2, orientation, font_size, bar_width, gridlines, show_values):
+def plot_2cohort_outcomes(df, cohort1, cohort2, color1, color2, orientation, font_size, bar_width, gridlines, show_values, show_legend, group_gap):
     if len(df) == 0:
         fig, ax = plt.subplots()
         ax.set_title("No data to plot.")
@@ -76,10 +79,12 @@ def plot_2cohort_outcomes(df, cohort1, cohort2, color1, color2, orientation, fon
     cohort1_vals = df[f"{cohort1} Risk (%)"].tolist()
     cohort2_vals = df[f"{cohort2} Risk (%)"].tolist()
     n = len(outcomes)
-    ind = np.arange(n)
+
+    # -- Key change: group_gap multiplies the default spacing between groups --
+    ind = np.arange(n) * group_gap
     width = bar_width / 2
 
-    fig, ax = plt.subplots(figsize=(max(6, 1.5 * n), 5))
+    fig, ax = plt.subplots(figsize=(max(6, 1.1 * n * group_gap), 5))
     if orientation == "Vertical":
         bars1 = ax.bar(ind - width/2, cohort1_vals, width, label=cohort1, color=color1, edgecolor="#444")
         bars2 = ax.bar(ind + width/2, cohort2_vals, width, label=cohort2, color=color2, edgecolor="#444")
@@ -94,7 +99,9 @@ def plot_2cohort_outcomes(df, cohort1, cohort2, color1, color2, orientation, fon
             for rect in bars2:
                 height = rect.get_height()
                 ax.text(rect.get_x() + rect.get_width()/2., height, f'{height:.2f}%', ha='center', va='bottom', fontsize=font_size)
-        ax.legend(fontsize=font_size)
+        if show_legend:
+            # Place legend outside right
+            ax.legend(fontsize=font_size, bbox_to_anchor=(1.04, 1), loc="upper left", borderaxespad=0)
         ax.grid(gridlines, axis='y', linestyle='--', alpha=0.4)
     else:
         bars1 = ax.barh(ind - width/2, cohort1_vals, width, label=cohort1, color=color1, edgecolor="#444")
@@ -110,10 +117,11 @@ def plot_2cohort_outcomes(df, cohort1, cohort2, color1, color2, orientation, fon
             for rect in bars2:
                 width_val = rect.get_width()
                 ax.text(width_val, rect.get_y() + rect.get_height()/2., f'{width_val:.2f}%', va='center', ha='left', fontsize=font_size)
-        ax.legend(fontsize=font_size)
+        if show_legend:
+            ax.legend(fontsize=font_size, bbox_to_anchor=(1.04, 1), loc="upper left", borderaxespad=0)
         ax.grid(gridlines, axis='x', linestyle='--', alpha=0.4)
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 0.88, 1]) if show_legend else plt.tight_layout()
     plt.box(False)
     ax.spines[['top', 'right']].set_visible(False)
     return fig
@@ -128,7 +136,9 @@ fig = plot_2cohort_outcomes(
     font_size=font_size,
     bar_width=bar_width,
     gridlines=gridlines,
-    show_values=show_values
+    show_values=show_values,
+    show_legend=show_legend,
+    group_gap=group_gap
 )
 
 st.pyplot(fig)
