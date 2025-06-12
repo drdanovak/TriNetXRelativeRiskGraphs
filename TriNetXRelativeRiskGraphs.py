@@ -18,7 +18,6 @@ cohort2_name = st.sidebar.text_input("Cohort 2 Name", "Cohort 2")
 cohort1_color = st.sidebar.color_picker(f"Color for {cohort1_name}", "#8e44ad")
 cohort2_color = st.sidebar.color_picker(f"Color for {cohort2_name}", "#27ae60")
 
-# Table layout: Outcome Name | Cohort 1 Risk (%) | Cohort 2 Risk (%)
 def initialize_data():
     return pd.DataFrame({
         "Outcome Name": ["Diabetes", "Anemia", "Cancer"],
@@ -29,11 +28,20 @@ def initialize_data():
 if "data" not in st.session_state:
     st.session_state.data = initialize_data()
 
-# Adjust column names if user changes cohort names
-df = st.session_state.data
-new_columns = ["Outcome Name", f"{cohort1_name} Risk (%)", f"{cohort2_name} Risk (%)"]
-if list(df.columns) != new_columns:
-    df.columns = new_columns
+df = st.session_state.data.copy()
+
+# Only rename columns if there are exactly three columns (robust to accidental changes)
+expected_cols = ["Outcome Name", f"{cohort1_name} Risk (%)", f"{cohort2_name} Risk (%)"]
+if list(df.columns) != expected_cols:
+    if len(df.columns) == 3:
+        df.columns = expected_cols
+    else:
+        # Reset to a blank template to fix any accidental column additions/deletions
+        df = pd.DataFrame({
+            "Outcome Name": [],
+            f"{cohort1_name} Risk (%)": [],
+            f"{cohort2_name} Risk (%)": []
+        })
 
 # Editable data table
 df = st.data_editor(
@@ -59,6 +67,11 @@ show_values = st.sidebar.checkbox("Show values on bars", value=True)
 st.subheader("Bar Chart")
 
 def plot_2cohort_outcomes(df, cohort1, cohort2, color1, color2, orientation, font_size, bar_width, gridlines, show_values):
+    if len(df) == 0:
+        fig, ax = plt.subplots()
+        ax.set_title("No data to plot.")
+        return fig
+
     outcomes = df["Outcome Name"].tolist()
     cohort1_vals = df[f"{cohort1} Risk (%)"].tolist()
     cohort2_vals = df[f"{cohort2} Risk (%)"].tolist()
