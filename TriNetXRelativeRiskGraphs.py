@@ -7,7 +7,8 @@ from matplotlib.ticker import AutoMinorLocator  # ✅ Correct import
 
 # ---------- COLOR PALETTES ----------
 PALETTES = {
-    "Classic": ["#8e44ad", "#27ae60"],
+    "Classic TriNetX": ["#8e44ad", "#27ae60"],
+    "University of California": ["#1295D8", "#FFB511"],
     "Colorblind-safe": ["#0072B2", "#D55E00"],
     "Tol (bright)": ["#4477AA", "#EE6677"],
     "Blue-Green": ["#1B9E77", "#7570B3"],
@@ -25,7 +26,7 @@ Enjoy publication-ready graphics with adjustable palettes, fonts, tick marks, an
 """)
 
 # Sidebar: cohort and chart controls
-st.sidebar.header("Cohort Settings")
+st.sidebar.header("Graph Settings")
 cohort1_name = st.sidebar.text_input("Cohort 1 Name", "Cohort 1")
 cohort2_name = st.sidebar.text_input("Cohort 2 Name", "Cohort 2")
 
