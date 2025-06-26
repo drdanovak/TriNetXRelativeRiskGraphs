@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
-from matplotlib.ticker import AutoMinorLocator
+import matplotlib.pyplot as plt
 import numpy as np
 from io import BytesIO
+from matplotlib.ticker import AutoMinorLocator  # ✅ Correct import
 
 # ---------- COLOR PALETTES ----------
 PALETTES = {
@@ -31,7 +32,6 @@ cohort2_name = st.sidebar.text_input("Cohort 2 Name", "Cohort 2")
 palette_name = st.sidebar.selectbox("Color Palette", list(PALETTES.keys()), index=1)
 color1, color2 = PALETTES[palette_name]
 
-# Let user override palette colors if desired
 color1 = st.sidebar.color_picker(f"Bar Color for {cohort1_name}", color1)
 color2 = st.sidebar.color_picker(f"Bar Color for {cohort2_name}", color2)
 
@@ -52,7 +52,6 @@ if list(df.columns) != expected_cols:
     if len(df.columns) == 3:
         df.columns = expected_cols
     else:
-        # Reset if user added/deleted columns
         df = pd.DataFrame({
             "Outcome Name": [],
             f"{cohort1_name} Risk (%)": [],
@@ -115,7 +114,6 @@ def plot_2cohort_outcomes(
     fig.patch.set_facecolor("#FAFAFA")
     ax.set_facecolor("#FAFAFA")
 
-    # Draw bars
     if orientation == "Vertical":
         bars1 = ax.bar(
             group_centers - pair_offset, cohort1_vals, bar_width, label=cohort1, color=color1,
@@ -131,7 +129,6 @@ def plot_2cohort_outcomes(
         ax.set_xlabel("Outcome", fontsize=font_size + 2, fontname=font_family)
         ylims = ax.get_ylim()
         ax.set_ylim([0, max(ylims[1], max(cohort1_vals + cohort2_vals) * 1.12 + 1)])
-        # Values
         if show_values:
             for rect in list(bars1) + list(bars2):
                 height = rect.get_height()
@@ -147,7 +144,7 @@ def plot_2cohort_outcomes(
         ax.xaxis.set_tick_params(labelsize=tick_fontsize, length=major_tick_length)
         ax.yaxis.set_tick_params(labelsize=tick_fontsize, length=major_tick_length)
         if minor_ticks:
-            ax.yaxis.set_minor_locator(plt.AutoMinorLocator())
+            ax.yaxis.set_minor_locator(AutoMinorLocator())  # ✅ Corrected
             ax.yaxis.set_tick_params(which='minor', length=int(major_tick_length*0.7), width=0.8)
     else:
         bars1 = ax.barh(
@@ -179,10 +176,9 @@ def plot_2cohort_outcomes(
         ax.xaxis.set_tick_params(labelsize=tick_fontsize, length=major_tick_length)
         ax.yaxis.set_tick_params(labelsize=tick_fontsize, length=major_tick_length)
         if minor_ticks:
-            ax.xaxis.set_minor_locator(AutoMinorLocator())
+            ax.xaxis.set_minor_locator(AutoMinorLocator())  # ✅ Corrected
             ax.xaxis.set_tick_params(which='minor', length=int(major_tick_length*0.7), width=0.8)
 
-    # Remove spines
     for spine in ["top", "right", "left", "bottom"]:
         ax.spines[spine].set_visible(False)
     plt.tight_layout(rect=[0, 0, 0.89 if show_legend else 1, 1])
