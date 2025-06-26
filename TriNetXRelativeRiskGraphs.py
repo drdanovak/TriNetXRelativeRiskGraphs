@@ -81,7 +81,7 @@ st.sidebar.header("Chart Appearance")
 orientation = st.sidebar.radio("Bar Orientation", ["Vertical", "Horizontal"], index=1)
 font_family = st.sidebar.selectbox(
     "Font Family",
-    ["DejaVu Sans", "Arial", "Helvetica", "Times New Roman", "Courier New", "Verdana"],
+    ["Arial", "Helvetica", "Times New Roman", "Courier New", "Verdana"],
     index=0,
 )
 font_size = st.sidebar.slider("Font Size", 8, 32, 14)
