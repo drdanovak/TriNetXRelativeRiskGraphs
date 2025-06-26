@@ -179,7 +179,7 @@ def plot_2cohort_outcomes(
         ax.xaxis.set_tick_params(labelsize=tick_fontsize, length=major_tick_length)
         ax.yaxis.set_tick_params(labelsize=tick_fontsize, length=major_tick_length)
         if minor_ticks:
-            ax.xaxis.set_minor_locator(plt.AutoMinorLocator())
+            ax.xaxis.set_minor_locator(AutoMinorLocator())
             ax.xaxis.set_tick_params(which='minor', length=int(major_tick_length*0.7), width=0.8)
 
     # Remove spines
