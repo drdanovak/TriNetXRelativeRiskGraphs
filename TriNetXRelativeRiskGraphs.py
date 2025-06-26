@@ -59,7 +59,7 @@ if list(df.columns) != expected_cols:
             f"{cohort2_name} Risk (%)": []
         })
 
-df = st.data_editor(
+edited_df = st.data_editor(
     df,
     num_rows="dynamic",
     use_container_width=True,
@@ -70,7 +70,11 @@ df = st.data_editor(
     },
     key="data_editor"
 )
-st.session_state.data = df
+
+if not edited_df.equals(st.session_state.data):
+    st.session_state.data = edited_df.copy()
+
+df = st.session_state.data.copy()
 
 # --------- Chart controls -----------
 st.sidebar.header("Chart Appearance")
@@ -145,7 +149,7 @@ def plot_2cohort_outcomes(
         ax.xaxis.set_tick_params(labelsize=tick_fontsize, length=major_tick_length)
         ax.yaxis.set_tick_params(labelsize=tick_fontsize, length=major_tick_length)
         if minor_ticks:
-            ax.yaxis.set_minor_locator(AutoMinorLocator())  # ✅ Corrected
+            ax.yaxis.set_minor_locator(AutoMinorLocator())
             ax.yaxis.set_tick_params(which='minor', length=int(major_tick_length*0.7), width=0.8)
     else:
         bars1 = ax.barh(
@@ -177,7 +181,7 @@ def plot_2cohort_outcomes(
         ax.xaxis.set_tick_params(labelsize=tick_fontsize, length=major_tick_length)
         ax.yaxis.set_tick_params(labelsize=tick_fontsize, length=major_tick_length)
         if minor_ticks:
-            ax.xaxis.set_minor_locator(AutoMinorLocator())  # ✅ Corrected
+            ax.xaxis.set_minor_locator(AutoMinorLocator())
             ax.xaxis.set_tick_params(which='minor', length=int(major_tick_length*0.7), width=0.8)
 
     for spine in ["top", "right", "left", "bottom"]:
